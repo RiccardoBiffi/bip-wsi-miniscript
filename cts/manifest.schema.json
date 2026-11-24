@@ -1,0 +1,140 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "WSI CTS manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "draft_version", "protocol_version", "artifacts", "profiles", "profile_resources", "axes", "cases"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "draft_version": {"const": "0.2.1"},
+    "protocol_version": {"const": 1},
+    "artifacts": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "sha256"],
+        "properties": {
+          "path": {"type": "string", "pattern": "^[a-zA-Z0-9_./-]+$"},
+          "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+        }
+      }
+    },
+    "profiles": {
+      "type": "object",
+      "minProperties": 4,
+      "maxProperties": 4,
+      "additionalProperties": {
+        "type": "array",
+        "items": {"$ref": "#/$defs/case_id"},
+        "uniqueItems": true
+      }
+    },
+    "axes": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": {"type": "string"}
+    },
+    "profile_resources": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": {"type": "integer", "minimum": 0}
+      }
+    },
+    "cases": {
+      "type": "array",
+      "minItems": 64,
+      "maxItems": 64,
+      "items": {"$ref": "#/$defs/case"}
+    }
+  },
+  "$defs": {
+    "case_id": {"type": "string", "pattern": "^WSI-[A-Z]+-[0-9]{3}$"},
+    "case": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "applies", "kind", "stimulus", "expected", "scenarios"],
+      "properties": {
+        "id": {"$ref": "#/$defs/case_id"},
+        "applies": {"type": "string"},
+        "kind": {"enum": ["automated", "device-ui", "differential", "integration", "negative", "process"]},
+        "stimulus": {"type": "string"},
+        "expected": {"type": "string"},
+        "scenarios": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"$ref": "#/$defs/scenario"}
+        }
+      }
+    },
+    "scenario": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "requires", "axes", "steps", "assertions", "evidence"],
+      "properties": {
+        "id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"},
+        "requires": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": {"type": "string", "pattern": "^[a-z_]+:[a-z0-9-]+$"}
+          }
+        },
+        "axes": {"type": "array", "uniqueItems": true, "items": {"type": "string"}},
+        "steps": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/step"}},
+        "assertions": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": ["predicate"],
+            "properties": {"predicate": {"type": "string", "pattern": "^[a-z0-9-]+$"}}
+          }
+        },
+        "evidence": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"enum": ["wire", "oracle", "device-ui", "device-path", "process"]}
+        }
+      }
+    },
+    "step": {
+      "type": "object",
+      "required": ["op"],
+      "properties": {"op": {"enum": ["exchange", "wire", "device", "carrier", "oracle", "assessment"]}},
+      "allOf": [
+        {
+          "if": {"properties": {"op": {"const": "exchange"}}},
+          "then": {
+            "required": ["method", "user", "parameters"],
+            "properties": {
+              "method": {"enum": ["capabilities", "get_key", "check_policy", "register_policy", "display_address", "sign_psbt"]},
+              "user": {"enum": ["none", "approve", "reject", "cancel"]},
+              "parameters": {"type": "object"},
+              "fixture": {"type": "string"}
+            }
+          }
+        },
+        {
+          "if": {"properties": {"op": {"const": "wire"}}},
+          "then": {
+            "required": ["asset", "direction"],
+            "properties": {
+              "asset": {"type": "string"},
+              "direction": {"enum": ["request", "response"]}
+            }
+          }
+        },
+        {
+          "if": {"properties": {"op": {"enum": ["device", "carrier", "oracle", "assessment"]}}},
+          "then": {"required": ["action"], "properties": {"action": {"type": "string"}}}
+        }
+      ]
+    }
+  }
+}

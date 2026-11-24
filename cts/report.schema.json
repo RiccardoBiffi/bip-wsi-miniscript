@@ -1,0 +1,207 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "WSI CTS execution report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "suite", "assessment", "endpoint", "claims", "tools", "evidence", "results"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "suite": {"$ref": "#/$defs/suite"},
+    "assessment": {"$ref": "#/$defs/assessment"},
+    "endpoint": {"$ref": "#/$defs/endpoint"},
+    "claims": {"$ref": "#/$defs/claims"},
+    "tools": {
+      "type": "object",
+      "required": ["runner"],
+      "propertyNames": {"$ref": "#/$defs/identifier"},
+      "additionalProperties": {"$ref": "#/$defs/text"}
+    },
+    "evidence": {"type": "array", "items": {"$ref": "#/$defs/evidence"}},
+    "results": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/result"}}
+  },
+  "$defs": {
+    "text": {"type": "string", "minLength": 1},
+    "identifier": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]*$"},
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "u32": {"type": "integer", "minimum": 0, "maximum": 4294967295},
+    "timestamp": {"type": "string", "format": "date-time", "pattern": "Z$"},
+    "text_set": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/$defs/text"}},
+    "u32_set": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/$defs/u32"}},
+    "carrier": {"enum": ["file", "stream"]},
+    "network": {"enum": ["bitcoin", "testnet3", "testnet4", "signet", "regtest"]},
+    "scalar_map": {
+      "type": "object",
+      "propertyNames": {"$ref": "#/$defs/identifier"},
+      "additionalProperties": {"type": ["string", "integer", "boolean", "null"]}
+    },
+    "suite": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["version", "manifest_sha256"],
+      "properties": {
+        "version": {"$ref": "#/$defs/text"},
+        "manifest_sha256": {"$ref": "#/$defs/sha256"},
+        "commit": {"type": "string", "pattern": "^(?:[0-9a-f]{40}|[0-9a-f]{64})$"}
+      }
+    },
+    "assessment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "lane", "assessor", "started_at", "completed_at"],
+      "properties": {
+        "kind": {"enum": ["self-test", "independent"]},
+        "lane": {"enum": ["hardware", "simulator"]},
+        "assessor": {"$ref": "#/$defs/text"},
+        "started_at": {"$ref": "#/$defs/timestamp"},
+        "completed_at": {"$ref": "#/$defs/timestamp"}
+      }
+    },
+    "endpoint": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mode", "model", "firmware", "adapter", "carrier", "binding", "network", "configuration"],
+      "properties": {
+        "mode": {"enum": ["native", "adapter"]},
+        "model": {"$ref": "#/$defs/text"},
+        "firmware": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["version"],
+          "properties": {
+            "version": {"$ref": "#/$defs/text"},
+            "build": {"$ref": "#/$defs/text"},
+            "sha256": {"$ref": "#/$defs/sha256"}
+          }
+        },
+        "adapter": {
+          "type": ["object", "null"],
+          "additionalProperties": false,
+          "required": ["name", "version", "revision"],
+          "properties": {
+            "name": {"$ref": "#/$defs/text"},
+            "version": {"$ref": "#/$defs/text"},
+            "revision": {"$ref": "#/$defs/text"}
+          }
+        },
+        "carrier": {"$ref": "#/$defs/carrier"},
+        "binding": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["name", "version", "medium"],
+          "properties": {
+            "name": {"$ref": "#/$defs/text"},
+            "version": {"$ref": "#/$defs/text"},
+            "medium": {"enum": ["usb", "serial", "ble", "qr", "removable-media", "ipc", "other"]}
+          }
+        },
+        "network": {"$ref": "#/$defs/network"},
+        "configuration": {"$ref": "#/$defs/scalar_map"}
+      },
+      "if": {"properties": {"mode": {"const": "native"}}},
+      "then": {"properties": {"adapter": {"type": "null"}}},
+      "else": {"properties": {"adapter": {"type": "object"}}}
+    },
+    "claims": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "protocol_version", "profiles", "features", "carriers", "policy_formats", "psbt_versions",
+        "transaction_versions", "registration_modes", "ecdsa_sighashes", "schnorr_sighashes",
+        "enforcement", "limits", "miniscript"
+      ],
+      "properties": {
+        "protocol_version": {"const": 1},
+        "profiles": {"$ref": "#/$defs/text_set"},
+        "features": {"$ref": "#/$defs/text_set"},
+        "carriers": {
+          "type": "array", "minItems": 1, "maxItems": 1, "items": {"$ref": "#/$defs/carrier"}
+        },
+        "policy_formats": {
+          "type": "array", "uniqueItems": true,
+          "items": {"enum": ["bip388-v1", "descriptor-pair-v1"]}
+        },
+        "psbt_versions": {"type": "array", "uniqueItems": true, "items": {"enum": [0, 2]}},
+        "transaction_versions": {"$ref": "#/$defs/u32_set"},
+        "registration_modes": {
+          "type": "array", "uniqueItems": true, "items": {"enum": ["stored", "token", "per-operation"]}
+        },
+        "ecdsa_sighashes": {"$ref": "#/$defs/u32_set"},
+        "schnorr_sighashes": {"$ref": "#/$defs/u32_set"},
+        "enforcement": {"$ref": "#/$defs/enforcement"},
+        "limits": {"$ref": "#/$defs/limits"},
+        "miniscript": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["wsh", "tapscript"],
+          "properties": {
+            "wsh": {"$ref": "#/$defs/context_support"},
+            "tapscript": {"$ref": "#/$defs/context_support"}
+          }
+        }
+      }
+    },
+    "enforcement": {
+      "type": "object",
+      "required": ["policy_validation", "policy_review", "address_display", "change_verification", "signature_scope"],
+      "additionalProperties": {"enum": ["device", "host-only", "unavailable"]},
+      "propertyNames": {
+        "enum": ["policy_validation", "policy_review", "address_display", "change_verification", "signature_scope"]
+      }
+    },
+    "limits": {
+      "type": "object",
+      "required": [
+        "container_bytes", "psbt_bytes", "policy_bytes", "template_bytes", "descriptor_bytes", "keys",
+        "owned_keys", "ast_nodes", "ast_depth", "tap_leaves", "tap_depth", "inputs", "outputs",
+        "targets", "policies_per_sign", "label_bytes"
+      ],
+      "additionalProperties": {"$ref": "#/$defs/u32"},
+      "propertyNames": {
+        "enum": [
+          "container_bytes", "psbt_bytes", "policy_bytes", "template_bytes", "descriptor_bytes", "keys",
+          "owned_keys", "ast_nodes", "ast_depth", "tap_leaves", "tap_depth", "inputs", "outputs",
+          "targets", "policies_per_sign", "label_bytes"
+        ]
+      }
+    },
+    "context_support": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["coverage", "fragments", "restrictions"],
+      "properties": {
+        "coverage": {"enum": ["none", "subset", "full-v1"]},
+        "fragments": {"$ref": "#/$defs/text_set"},
+        "restrictions": {"$ref": "#/$defs/text_set"}
+      }
+    },
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "kind", "path", "sha256"],
+      "properties": {
+        "id": {"$ref": "#/$defs/identifier"},
+        "kind": {"enum": ["wire", "oracle", "device-ui", "device-path", "process"]},
+        "path": {"type": "string", "pattern": "^[A-Za-z0-9_-][A-Za-z0-9_.-]*(/[A-Za-z0-9_-][A-Za-z0-9_.-]*)*$"},
+        "sha256": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "result": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["case_id", "scenario_id", "parameters", "outcome", "evidence_ids"],
+      "properties": {
+        "case_id": {"type": "string", "pattern": "^WSI-[A-Z]+-[0-9]{3}$"},
+        "scenario_id": {"$ref": "#/$defs/identifier"},
+        "parameters": {"$ref": "#/$defs/scalar_map"},
+        "outcome": {"enum": ["pass", "fail", "not-run", "inapplicable"]},
+        "evidence_ids": {
+          "type": "array", "uniqueItems": true, "items": {"$ref": "#/$defs/identifier"}
+        },
+        "notes": {"$ref": "#/$defs/text"}
+      },
+      "if": {"properties": {"outcome": {"enum": ["pass", "fail"]}}},
+      "then": {"properties": {"evidence_ids": {"minItems": 1}}},
+      "else": {"required": ["notes"]}
+    }
+  }
+}

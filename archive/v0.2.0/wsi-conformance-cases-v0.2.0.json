@@ -1,0 +1,633 @@
+{
+  "document": "Wallet-Signer Interface with Miniscript",
+  "bip_status": "working draft; no number assigned; not submitted",
+  "draft_version": "0.2.0",
+  "suite_name": "WSI CTS",
+  "suite_status": "normative-test-plan-only",
+  "warning": "Case definitions and required results; NOT executable vectors and NOT a device certification.",
+  "protocol_version": 1,
+  "conformance_rule": "All mandatory CORE cases + all cases mapped to each advertised feature/profile/version/mode/carrier must pass with the actual endpoint and trusted device UI.",
+  "profile_cases": {
+    "wsi-core-v1": [
+      "CORE"
+    ],
+    "wsi-miniscript-wsh-v1": [
+      "CORE",
+      "miniscript-wsh"
+    ],
+    "wsi-miniscript-tapscript-v1": [
+      "CORE",
+      "miniscript-tapscript"
+    ],
+    "wsi-miniscript-full-v1": [
+      "CORE",
+      "miniscript-wsh",
+      "miniscript-tapscript",
+      "descriptor-pair",
+      "raw-external-keys"
+    ]
+  },
+  "feature_case_ids": {
+    "policy-bip388": [
+      "WSI-POL-001",
+      "WSI-POL-002",
+      "WSI-REG-001"
+    ],
+    "descriptor-pair": [
+      "WSI-DPA-001",
+      "WSI-DPA-002",
+      "WSI-DPA-004"
+    ],
+    "miniscript-wsh": [
+      "WSI-WSH-001",
+      "WSI-WSH-002",
+      "WSI-WSH-006"
+    ],
+    "miniscript-tapscript": [
+      "WSI-TR-001",
+      "WSI-TR-002",
+      "WSI-TR-005"
+    ],
+    "raw-external-keys": [
+      "WSI-DPA-003"
+    ],
+    "taproot-keypath": [
+      "WSI-TR-003"
+    ],
+    "taproot-scriptpath": [
+      "WSI-TR-004"
+    ],
+    "exact-signature-scope": [
+      "WSI-SCOPE-001",
+      "WSI-TX-003"
+    ],
+    "fee-unverified-opt-in": [
+      "WSI-FEE-001"
+    ]
+  },
+  "cases": [
+    {
+      "id": "WSI-ENC-001",
+      "applies": "CORE",
+      "kind": "automated",
+      "stimulus": "Round-trip the canonical CBOR request/response and both file/stream frames with byte-exact known vectors.",
+      "expected": "The decoded record, bytes, request_hash and policy_id match the independent reference exactly.",
+      "fixture_status": "needs-concrete-vectors"
+    },
+    {
+      "id": "WSI-ENC-002",
+      "applies": "CORE",
+      "kind": "automated",
+      "stimulus": "Inject duplicate map keys, bad UTF-8, nonshort integers, indefinite lengths, tags, unsorted keys and trailing bytes.",
+      "expected": "All invalid/non-deterministic payloads fail before method dispatch; no signature or uncorrelated WSI response is produced.",
+      "fixture_status": "needs-concrete-vectors"
+    },
+    {
+      "id": "WSI-ENC-003",
+      "applies": "CORE",
+      "kind": "automated",
+      "stimulus": "Alter response ID, request_hash, protocol version and required_features; repeat a request ID with different bytes.",
+      "expected": "Mismatched responses are rejected by the host; retained conflicting ID is rejected; unsupported features never silently fall back.",
+      "fixture_status": "needs-concrete-vectors"
+    },
+    {
+      "id": "WSI-ENC-004",
+      "applies": "CORE",
+      "kind": "automated",
+      "stimulus": "Send overlength containers, excessive CBOR depth, incomplete frames and field values outside uint bounds.",
+      "expected": "All are bounded/rejected before unsafe allocation or execution; advertised limits are honored.",
+      "fixture_status": "needs-concrete-vectors"
+    },
+    {
+      "id": "WSI-CAP-001",
+      "applies": "CORE",
+      "kind": "automated",
+      "stimulus": "Call capabilities while locked and in each claimed key context.",
+      "expected": "Schema and limits are valid, no serial/xpub/fingerprint is revealed, and unsupported operations are not claimed.",
+      "fixture_status": "needs-concrete-vectors"
+    },
+    {
+      "id": "WSI-CAP-002",
+      "applies": "CORE",
+      "kind": "integration",
+      "stimulus": "Compare advertised features/enforcement with behavior through the actual adapter and actual signer.",
+      "expected": "The intersection is reported; host-only checks are never marked device-enforced.",
+      "fixture_status": "needs-concrete-vectors"
+    },
+    {
+      "id": "WSI-CAP-003",
+      "applies": "CORE",
+      "kind": "integration",
+      "stimulus": "Execute every advertised PSBT version, transaction version, sighash and registration mode; request each unadvertised one.",
+      "expected": "Every claimed combination works as specified; unadvertised modes fail without transaction or policy mutation.",
+      "fixture_status": "needs-concrete-vectors"
+    },
+    {
+      "id": "WSI-CAP-004",
+      "applies": "CORE",
+      "kind": "process",
+      "stimulus": "Repeat capability and regression tests after firmware, adapter, transport or configuration change.",
+      "expected": "Claims are version-scoped and withdrawn or retested after relevant changes.",
+      "fixture_status": "needs-concrete-vectors"
+    },
+    {
+      "id": "WSI-KEY-001",
+      "applies": "CORE",
+      "kind": "device-ui",
+      "stimulus": "Export a reference xpub on an allowed path with user approval and derive several children independently.",
+      "expected": "Fingerprint, network, origin, xpub and derived children agree with the signer seed and reference implementation.",
+      "fixture_status": "needs-concrete-vectors"
+    },
+    {
+      "id": "WSI-KEY-002",
+      "applies": "CORE",
+      "kind": "automated",
+      "stimulus": "Request a blocked path, a wrong network and a key for a different seed/passphrase.",
+      "expected": "No substitution or xprv/seed leakage; precise rejection or correctly scoped new approval.",
+      "fixture_status": "needs-concrete-vectors"
+    },
+    {
+      "id": "WSI-KEY-003",
+      "applies": "CORE",
+      "kind": "device-ui",
+      "stimulus": "Deny get_key on the trusted device after a hostile host request.",
+      "expected": "No successful export or disclosure occurs following rejection.",
+      "fixture_status": "needs-concrete-vectors"
+    },
+    {
+      "id": "WSI-POL-001",
+      "applies": "CORE",
+      "kind": "automated",
+      "stimulus": "Validate BIP-388 wpkh and 2-of-3 wsh(sortedmulti) accounts and compare exact policy identifiers and addresses.",
+      "expected": "Policy identity and scripts match independently derived expectations.",
+      "fixture_status": "needs-concrete-vectors"
+    },
+    {
+      "id": "WSI-POL-002",
+      "applies": "CORE",
+      "kind": "automated",
+      "stimulus": "Submit invalid BIP-388 key vectors, duplicate xpubs, invalid derivation ranges, bad origins and wrong network.",
+      "expected": "Invalid/unsupported data are never approved; issue class accurately distinguishes invalid, unsafe and unsupported.",
+      "fixture_status": "needs-concrete-vectors"
+    },
+    {
+      "id": "WSI-POL-003",
+      "applies": "CORE",
+      "kind": "automated",
+      "stimulus": "Request a check when only the adapter parser can assess a policy but device validation requires registration.",
+      "expected": "check_policy reports validation=host and support=unknown with DEVICE_CHECK_REQUIRED; it does not silently approve.",
+      "fixture_status": "needs-concrete-vectors"
+    },
+    {
+      "id": "WSI-POL-004",
+      "applies": "CORE",
+      "kind": "integration",
+      "stimulus": "For a supported account compare native signer validation with register_policy and sign_psbt checks.",
+      "expected": "Registration/signing revalidate the exact same policy; support is not cached solely from host preflight.",
+      "fixture_status": "needs-concrete-vectors"
+    },
+    {
+      "id": "WSI-POL-005",
+      "applies": "CORE",
+      "kind": "automated",
+      "stimulus": "Use duplicate derived public keys within one Miniscript or hostile same-fingerprint-but-wrong-xpub origins.",
+      "expected": "Key ownership is verified from actual derived public keys; collisions are rejected under the applicable rules.",
+      "fixture_status": "needs-concrete-vectors"
+    },
+    {
+      "id": "WSI-POL-006",
+      "applies": "CORE",
+      "kind": "automated",
+      "stimulus": "Provide a valid policy outside a functional capability and another over a declared numeric limit.",
+      "expected": "Distinct UNSUPPORTED_POLICY and RESOURCE_LIMIT outcomes; neither is mislabeled INVALID_POLICY.",
+      "fixture_status": "needs-concrete-vectors"
+    },
+    {
+      "id": "WSI-POL-007",
+      "applies": "CORE",
+      "kind": "automated",
+      "stimulus": "Submit a provably invalid or unsafe policy and a policy whose device validity cannot be concluded read-only.",
+      "expected": "invalid/unsafe and unknown are kept distinct; unknown is never upgraded to supported by host inference.",
+      "fixture_status": "needs-concrete-vectors"
+    },
+    {
+      "id": "WSI-REG-001",
+      "applies": "CORE",
+      "kind": "device-ui",
+      "stimulus": "Register a multisigner policy with external keys, absolute/relative locks where claimed, network, origin and full commitment.",
+      "expected": "Trusted device UI exposes actual terms; explicit approval precedes handle or signature.",
+      "fixture_status": "needs-concrete-vectors"
+    },
+    {
+      "id": "WSI-REG-002",
+      "applies": "CORE",
+      "kind": "automated",
+      "stimulus": "Tamper with a token/stored handle, policy, label, network and signer seed/passphrase context.",
+      "expected": "Handle is rejected; the old approval cannot authorize a changed policy or key context.",
+      "fixture_status": "needs-concrete-vectors"
+    },
+    {
+      "id": "WSI-REG-003",
+      "applies": "CORE",
+      "kind": "integration",
+      "stimulus": "Exercise every advertised stored, token and per-operation registration mode, including missing/stale registration.",
+      "expected": "Each mode has correct binding; per-operation mode obtains fresh trusted approval.",
+      "fixture_status": "needs-concrete-vectors"
+    },
+    {
+      "id": "WSI-REG-004",
+      "applies": "CORE",
+      "kind": "device-ui",
+      "stimulus": "Reject registration on-device and attempt to reuse the rejected policy and label.",
+      "expected": "No successful registration, address confirmation or signature is granted by the rejected request.",
+      "fixture_status": "needs-concrete-vectors"
+    },
+    {
+      "id": "WSI-REG-005",
+      "applies": "CORE",
+      "kind": "integration",
+      "stimulus": "Try a host-generated wrapper hash for a vendor commitment that does not cover every WSI-approved field.",
+      "expected": "Adapter requires full fresh device review or reports unsupported; cannot claim native commitment.",
+      "fixture_status": "needs-concrete-vectors"
+    },
+    {
+      "id": "WSI-ADR-001",
+      "applies": "CORE",
+      "kind": "device-ui",
+      "stimulus": "Derive and display first receive/change and a later ranged address for the same approved account.",
+      "expected": "Address and scriptPubKey exactly match independent derivation, correct network, branch and index.",
+      "fixture_status": "needs-concrete-vectors"
+    },
+    {
+      "id": "WSI-ADR-002",
+      "applies": "CORE",
+      "kind": "automated",
+      "stimulus": "Swap branch/index, policy, address or token between requests.",
+      "expected": "Host claims cannot alter the independently derived address; errors or correct displayed script are returned.",
+      "fixture_status": "needs-concrete-vectors"
+    },
+    {
+      "id": "WSI-ADR-003",
+      "applies": "CORE",
+      "kind": "device-ui",
+      "stimulus": "Reject address confirmation on-device.",
+      "expected": "No success result with confirmed=true; host cannot substitute its own display.",
+      "fixture_status": "needs-concrete-vectors"
+    },
+    {
+      "id": "WSI-ADR-004",
+      "applies": "CORE",
+      "kind": "integration",
+      "stimulus": "Attempt to derive branch=1 without a permitted change path or index beyond 2^31-1.",
+      "expected": "Operation rejects without substituting branch=0 or another index.",
+      "fixture_status": "needs-concrete-vectors"
+    },
+    {
+      "id": "WSI-TX-001",
+      "applies": "CORE",
+      "kind": "integration",
+      "stimulus": "Sign valid PSBTv0 and/or PSBTv2 for every advertised version and verify ECDSA signatures independently.",
+      "expected": "Exactly the requested targets are signed; unsigned transaction and unrelated PSBT data are unchanged.",
+      "fixture_status": "needs-concrete-vectors"
+    },
+    {
+      "id": "WSI-TX-002",
+      "applies": "CORE",
+      "kind": "automated",
+      "stimulus": "Request an unadvertised transaction nVersion (including 3 when unadvertised) or PSBT version.",
+      "expected": "Clear unsupported error; signer/adapter does not rewrite nVersion or convert unsafely.",
+      "fixture_status": "needs-concrete-vectors"
+    },
+    {
+      "id": "WSI-TX-003",
+      "applies": "CORE",
+      "kind": "automated",
+      "stimulus": "Change one target key, input, signature mode, sighash or leaf hash while keeping host-supplied labels unchanged.",
+      "expected": "Unrequested or forbidden scope never receives a signature; wrong scope is rejected.",
+      "fixture_status": "needs-concrete-vectors"
+    },
+    {
+      "id": "WSI-TX-004",
+      "applies": "CORE",
+      "kind": "integration",
+      "stimulus": "Insert unknown non-conflicting PSBT fields and unrelated preexisting signatures, then sign.",
+      "expected": "Only valid signature deltas are returned and host retains original unknown fields and order-dependent semantics.",
+      "fixture_status": "needs-concrete-vectors"
+    },
+    {
+      "id": "WSI-TX-005",
+      "applies": "CORE",
+      "kind": "automated",
+      "stimulus": "Inject conflicting PSBT key/value pairs, duplicate targets, fake already-present signatures or malformed deltas.",
+      "expected": "Request/patch rejected; no duplicate, forged or out-of-scope update silently merged.",
+      "fixture_status": "needs-concrete-vectors"
+    },
+    {
+      "id": "WSI-TX-006",
+      "applies": "CORE",
+      "kind": "integration",
+      "stimulus": "Sign with complete matching prevtx for ALL inputs, including external inputs, and known input/output amounts.",
+      "expected": "Fee is computed from authenticated outpoints and shown as verified-prevouts.",
+      "fixture_status": "needs-concrete-vectors"
+    },
+    {
+      "id": "WSI-TX-007",
+      "applies": "CORE",
+      "kind": "automated",
+      "stimulus": "Omit or falsify prevtx, witness UTXO value or outpoint, including a malicious external input.",
+      "expected": "Verified fee mode rejects with PREVOUT_DATA_REQUIRED or INVALID_PSBT; no unverified fee shown as verified.",
+      "fixture_status": "needs-concrete-vectors"
+    },
+    {
+      "id": "WSI-TX-008",
+      "applies": "CORE",
+      "kind": "device-ui",
+      "stimulus": "Falsely identify an external output, another wallet or a same-seed different-policy output as change.",
+      "expected": "Only script matching the approved spending account change branch is change; all other outputs stay visible.",
+      "fixture_status": "needs-concrete-vectors"
+    },
+    {
+      "id": "WSI-TX-009",
+      "applies": "CORE",
+      "kind": "device-ui",
+      "stimulus": "Spend from two policies with both actual change and external outputs.",
+      "expected": "All outputs and affected accounts are displayed under the conservative multi-account rule.",
+      "fixture_status": "needs-concrete-vectors"
+    },
+    {
+      "id": "WSI-TX-010",
+      "applies": "CORE",
+      "kind": "automated",
+      "stimulus": "Change nLockTime, input nSequence, output amount, destination and PSBTv2 locktime fields between approval and signature.",
+      "expected": "Any change that alters the reviewed unsigned transaction requires new authorization; no silent repair.",
+      "fixture_status": "needs-concrete-vectors"
+    },
+    {
+      "id": "WSI-TX-011",
+      "applies": "CORE",
+      "kind": "integration",
+      "stimulus": "Finalise host-side witness and verify transaction scripts with an independent engine on regtest.",
+      "expected": "Every produced signature validates; only intended executable satisfaction is used and accepted by independent script validation.",
+      "fixture_status": "needs-concrete-vectors"
+    },
+    {
+      "id": "WSI-TX-012",
+      "applies": "CORE",
+      "kind": "integration",
+      "stimulus": "Try to sign twice where a valid requested partial signature already exists.",
+      "expected": "already-present returned only after exact-key/sighash verification; no new hidden signature generated.",
+      "fixture_status": "needs-concrete-vectors"
+    },
+    {
+      "id": "WSI-FEE-001",
+      "applies": "fee-unverified-opt-in",
+      "kind": "device-ui",
+      "stimulus": "Use allow-unverified with insufficient prevtx data after explicitly enabling the feature.",
+      "expected": "Trusted display warns that aggregate fee is unverified; user opts in and response reports unverified; otherwise rejects.",
+      "fixture_status": "needs-concrete-vectors"
+    },
+    {
+      "id": "WSI-SCOPE-001",
+      "applies": "exact-signature-scope",
+      "kind": "integration",
+      "stimulus": "Request one leaf/input/key/sighash from a PSBT with several otherwise-signable targets.",
+      "expected": "Only the requested signature is released; omitted targets remain untouched.",
+      "fixture_status": "needs-concrete-vectors"
+    },
+    {
+      "id": "WSI-SIGHASH-001",
+      "applies": "each-advertised-sighash",
+      "kind": "integration",
+      "stimulus": "For each advertised ECDSA or Schnorr sighash, sign and verify exact digest semantics; request disallowed ones.",
+      "expected": "Each declared flag is honored exactly; unadvertised flags do not silently change to ALL/DEFAULT.",
+      "fixture_status": "needs-concrete-vectors"
+    },
+    {
+      "id": "WSI-DPA-001",
+      "applies": "descriptor-pair",
+      "kind": "automated",
+      "stimulus": "Accept valid receive and change checksummed descriptors with the same AST and distinct allowed derivation suffixes.",
+      "expected": "Both scripts/branches and paired account identity match independent derivation.",
+      "fixture_status": "needs-concrete-vectors"
+    },
+    {
+      "id": "WSI-DPA-002",
+      "applies": "descriptor-pair",
+      "kind": "automated",
+      "stimulus": "Mutate checksum, change thresholds, timelocks, internal key, key origins, wildcard shape or Taproot tree.",
+      "expected": "Pair mismatch/invalid checksum is rejected; a weaker change policy is never silently accepted.",
+      "fixture_status": "needs-concrete-vectors"
+    },
+    {
+      "id": "WSI-DPA-003",
+      "applies": "raw-external-keys",
+      "kind": "device-ui",
+      "stimulus": "Register fixed external public keys and a fixed device-owned public key with a verifiable origin in valid contexts.",
+      "expected": "Device distinguishes ownership, proves its owned key, warns where a fixed key creates address reuse/linkability.",
+      "fixture_status": "needs-concrete-vectors"
+    },
+    {
+      "id": "WSI-DPA-004",
+      "applies": "descriptor-pair",
+      "kind": "integration",
+      "stimulus": "Approve a descriptor without change and attempt branch=1 address and change output classification.",
+      "expected": "No branch=1 derivation or hidden change is allowed.",
+      "fixture_status": "needs-concrete-vectors"
+    },
+    {
+      "id": "WSI-WSH-001",
+      "applies": "miniscript-wsh",
+      "kind": "differential",
+      "stimulus": "Generate safe type-correct BIP-379 WSH ASTs covering every applicable fragment and wrapper, including nested AND/OR/thresh.",
+      "expected": "All within-envelope cases compile to expected scripts and accept correct satisfaction cases; no unsupported safe fragment is claimed Full.",
+      "fixture_status": "needs-concrete-vectors"
+    },
+    {
+      "id": "WSI-WSH-002",
+      "applies": "miniscript-wsh",
+      "kind": "negative",
+      "stimulus": "Generate context-invalid, type-invalid, malleable or unsigned-satisfaction WSH expressions and duplicate derived keys.",
+      "expected": "Unsafe/invalid policies are rejected by device validation and cannot be registered.",
+      "fixture_status": "needs-concrete-vectors"
+    },
+    {
+      "id": "WSI-WSH-003",
+      "applies": "hashlocks+miniscript-wsh",
+      "kind": "integration",
+      "stimulus": "Exercise sha256, hash256, ripemd160 and hash160 with correct 32-byte preimages, wrong digests and wrong lengths.",
+      "expected": "Correct cases validate; wrong/undersized preimages never satisfy or bypass safety analysis.",
+      "fixture_status": "needs-concrete-vectors"
+    },
+    {
+      "id": "WSI-WSH-004",
+      "applies": "timelocks+miniscript-wsh",
+      "kind": "integration",
+      "stimulus": "Exercise CLTV height/time and CSV block/512-second types across lock boundary, disable flag and transaction version.",
+      "expected": "Correct flags/units are preserved and interpreted; invalid combinations are rejected; presigning is not misreported as maturity.",
+      "fixture_status": "needs-concrete-vectors"
+    },
+    {
+      "id": "WSI-WSH-005",
+      "applies": "multiple-owned-keys+miniscript-wsh",
+      "kind": "integration",
+      "stimulus": "Use two controlled derived public keys from one xpub on disjoint ranges plus an independent external cosigner.",
+      "expected": "Both matching keys can sign where requested without conflating distinct derivations or claiming they are independent seed holders.",
+      "fixture_status": "needs-concrete-vectors"
+    },
+    {
+      "id": "WSI-WSH-006",
+      "applies": "miniscript-wsh",
+      "kind": "integration",
+      "stimulus": "Sign a nested 2-of-3/threshold WSH recovery path and finalise it using a different host implementation.",
+      "expected": "Independent script interpreter accepts intended witness and rejects invalid/missing signatures.",
+      "fixture_status": "needs-concrete-vectors"
+    },
+    {
+      "id": "WSI-TR-001",
+      "applies": "miniscript-tapscript",
+      "kind": "differential",
+      "stimulus": "Generate safe BIP-379 Tapscript leaves covering every applicable fragment/wrapper and a three-leaf depth-2 tree.",
+      "expected": "Independent descriptor/script engine matches each leaf hash, root, output key, scriptPubKey and valid satisfactions.",
+      "fixture_status": "needs-concrete-vectors"
+    },
+    {
+      "id": "WSI-TR-002",
+      "applies": "miniscript-tapscript",
+      "kind": "negative",
+      "stimulus": "Generate invalid type/context, unsafe, duplicate-key and prohibited timelock-mixing policies for Tapscript.",
+      "expected": "Device rejects rather than treating unsupported syntax as another script path.",
+      "fixture_status": "needs-concrete-vectors"
+    },
+    {
+      "id": "WSI-TR-003",
+      "applies": "taproot-keypath",
+      "kind": "integration",
+      "stimulus": "Sign a plain tr() key-path-only account; then request the same input under tap-script mode with no approved leaf.",
+      "expected": "Key-path signing succeeds only when explicitly requested and permitted; it is never substituted for an unavailable leaf.",
+      "fixture_status": "needs-concrete-vectors"
+    },
+    {
+      "id": "WSI-TR-004",
+      "applies": "taproot-scriptpath",
+      "kind": "integration",
+      "stimulus": "Sign a real leaf; corrupt leaf hash, sibling hash, control block, internal key, leaf version or output tweak.",
+      "expected": "Actual script-path target verifies; every tampered route fails without a signature for a different leaf.",
+      "fixture_status": "needs-concrete-vectors"
+    },
+    {
+      "id": "WSI-TR-005",
+      "applies": "miniscript-tapscript",
+      "kind": "integration",
+      "stimulus": "Sign a multi_a() threshold leaf and independently construct a witness with correct CHECKSIGADD ordering.",
+      "expected": "Independent script interpreter verifies valid stack and rejects missing/wrong signatures.",
+      "fixture_status": "needs-concrete-vectors"
+    },
+    {
+      "id": "WSI-TR-006",
+      "applies": "hashlocks+miniscript-tapscript",
+      "kind": "integration",
+      "stimulus": "Exercise all four hashlocks and CLTV/CSV height/time forms inside safe Tapscript leaf compositions.",
+      "expected": "All claimed combinations follow BIP-379 rules and are verified against independent witness execution.",
+      "fixture_status": "needs-concrete-vectors"
+    },
+    {
+      "id": "WSI-TR-007",
+      "applies": "multiple-owned-keys+miniscript-tapscript",
+      "kind": "integration",
+      "stimulus": "Build Tapscript leaves with two signer-controlled keys on disjoint derivation paths from the same xpub and an external cosigner.",
+      "expected": "Both derived keys are proven to belong to the device, can sign exact requested leaves, and never count as separate independent seed holders.",
+      "fixture_status": "needs-concrete-vectors"
+    },
+    {
+      "id": "WSI-CAR-001",
+      "applies": "each-advertised-carrier",
+      "kind": "integration",
+      "stimulus": "Execute representative core lifecycle on every advertised file/stream binding, including an offline signer when claimed.",
+      "expected": "Same payloads, commitments, approvals and outputs; no undisclosed online callback.",
+      "fixture_status": "needs-concrete-vectors"
+    },
+    {
+      "id": "WSI-CAR-002",
+      "applies": "each-advertised-carrier",
+      "kind": "negative",
+      "stimulus": "Truncate stream, split frame, reorder/duplicate QR segments, replay stale files and exceed advertised container bounds.",
+      "expected": "No partial request is executed and no fragmented or stale data can bypass approval.",
+      "fixture_status": "needs-concrete-vectors"
+    },
+    {
+      "id": "WSI-CAR-003",
+      "applies": "CORE",
+      "kind": "process",
+      "stimulus": "Cancel approval, lose response after signing, reset the signer and retry original request.",
+      "expected": "Host treats lost response as unknown, does not claim signature revocation, and preserves exact transaction approvals.",
+      "fixture_status": "needs-concrete-vectors"
+    },
+    {
+      "id": "WSI-UI-001",
+      "applies": "CORE",
+      "kind": "device-ui",
+      "stimulus": "With hostile host-provided title and change metadata, independently inspect policy, key roles, network, timelocks, hashlocks and outputs on the signer.",
+      "expected": "Device-approved content matches exact policy/transaction; no host-only UI can fulfill device enforcement.",
+      "fixture_status": "needs-concrete-vectors"
+    },
+    {
+      "id": "WSI-UI-002",
+      "applies": "CORE",
+      "kind": "device-ui",
+      "stimulus": "Refuse at each sensitive boundary (key export, policy approval, address display and signing) and observe device/API behavior.",
+      "expected": "Refusal cannot be converted into success, stored authorization or release of a new signature.",
+      "fixture_status": "needs-concrete-vectors"
+    }
+  ],
+  "contextual_feature_case_ids": {
+    "hashlocks": {
+      "wsh": [
+        "WSI-WSH-003"
+      ],
+      "tapscript": [
+        "WSI-TR-006"
+      ]
+    },
+    "cltv-height": {
+      "wsh": [
+        "WSI-WSH-004"
+      ],
+      "tapscript": [
+        "WSI-TR-006"
+      ]
+    },
+    "cltv-time": {
+      "wsh": [
+        "WSI-WSH-004"
+      ],
+      "tapscript": [
+        "WSI-TR-006"
+      ]
+    },
+    "csv-blocks": {
+      "wsh": [
+        "WSI-WSH-004"
+      ],
+      "tapscript": [
+        "WSI-TR-006"
+      ]
+    },
+    "csv-time": {
+      "wsh": [
+        "WSI-WSH-004"
+      ],
+      "tapscript": [
+        "WSI-TR-006"
+      ]
+    },
+    "multiple-owned-keys": {
+      "wsh": [
+        "WSI-WSH-005"
+      ],
+      "tapscript": [
+        "WSI-TR-007"
+      ]
+    }
+  },
+  "case_count": 64
+}

@@ -1,0 +1,1219 @@
+{
+  "schema_version": 1,
+  "mutations": {
+    "change-after-review": {
+      "source": "bitcoin:policies.wpkh",
+      "description": "Attempt the listed transaction change at the reviewed-request boundary. Observe that the original approved bytes remain effective or that changed bytes require externalized new approval.",
+      "operations": [
+        {
+          "op": "snapshot-reviewed-transaction"
+        },
+        {
+          "op": "change-reviewed-transaction-field",
+          "field": "step.field",
+          "value": "step.value",
+          "preserve_old_authorization": true,
+          "field_map": {
+            "locktime": "effective nLockTime",
+            "sequence": "sequence of input 0",
+            "output-value": "value_sat of output 0",
+            "output-script": {
+              "path": "script_pubkey of output 0",
+              "reference": "bitcoin:policies.external-wpkh.addresses[\"0/0\"].script_pubkey"
+            },
+            "v2-required-locktime": "PSBTv2 required height locktime of input 0"
+          }
+        }
+      ]
+    },
+    "changed-branch-index": {
+      "source": "bitcoin:policies.wpkh",
+      "description": "Change the command from change index 1 to receive index 0 while retaining the first derived address as a host suggestion.",
+      "operations": [
+        {
+          "op": "snapshot-host-address-suggestion",
+          "branch": 1,
+          "index": 1
+        },
+        {
+          "op": "replace",
+          "path": "params.branch",
+          "value": 0
+        },
+        {
+          "op": "replace",
+          "path": "params.index",
+          "value": 0
+        }
+      ]
+    },
+    "changed-handle": {
+      "source": "bitcoin:policies.wpkh",
+      "description": "Modify only the first byte of the approved opaque handle. When a per-operation address scenario has no handle, include a token handle with the single byte 00 as an invalid host claim.",
+      "operations": [
+        {
+          "op": "xor-byte",
+          "path": "wallet.registration.handle",
+          "offset": 0,
+          "mask": 1,
+          "when": "handle-present"
+        },
+        {
+          "op": "insert-registration",
+          "path": "wallet.registration",
+          "mode": "token",
+          "handle_hex": "00",
+          "when": "per-operation"
+        }
+      ]
+    },
+    "changed-key-context": {
+      "source": "bitcoin:policies.wpkh",
+      "description": "Activate the independent public CTS cosigner key context after the signer approves the policy. Retry the same wallet and handle.",
+      "operations": [
+        {
+          "op": "select-key-context",
+          "context": "B",
+          "after": "registration",
+          "preserve_request_operands": true
+        }
+      ]
+    },
+    "changed-label": {
+      "source": "bitcoin:policies.wpkh",
+      "description": "Reuse the original handle and change one printable character of the approved label.",
+      "operations": [
+        {
+          "op": "replace-first-char",
+          "path": "wallet.label",
+          "value": "C",
+          "alternate": "D"
+        }
+      ]
+    },
+    "changed-network": {
+      "source": "bitcoin:policies.wpkh",
+      "description": "Reuse the original handle and set the policy network to another standard network. Regtest and testnet4 substitute for one another. For other networks with test prefixes use testnet4. For bitcoin use regtest and serialize the same public key at the test extended-key version.",
+      "operations": [
+        {
+          "op": "replace-network",
+          "path": "wallet.policy",
+          "mapping": {
+            "bitcoin": "regtest",
+            "testnet3": "testnet4",
+            "testnet4": "regtest",
+            "signet": "testnet4",
+            "regtest": "testnet4"
+          },
+          "retag_xpub_version": true
+        }
+      ]
+    },
+    "changed-policy": {
+      "source": "bitcoin:policies.wpkh",
+      "description": "Keep the original registration data and swap the wpkh key's pair of derivation branches.",
+      "operations": [
+        {
+          "op": "replace-text-once",
+          "path": "wallet.policy.template",
+          "old": "@0/**",
+          "new": "@0/<2;3>/*"
+        }
+      ]
+    },
+    "changed-spending-script": {
+      "source": "bitcoin:policies.wpkh",
+      "description": "Substitute an independently derived external script for the prevout while retaining the original spending policy and target.",
+      "operations": [
+        {
+          "op": "replace-prevout-script",
+          "input": 0,
+          "script_reference": "bitcoin:policies.external-wpkh.addresses[\"0/0\"].script_pubkey",
+          "rebuild_parent": true
+        }
+      ]
+    },
+    "conflicting-delta": {
+      "source": "bitcoin:policies.wpkh",
+      "description": "Present a response update for an already occupied partial-signature key. Produce two different valid signatures of the exact same synthetic transaction digest using distinct deterministic nonces.",
+      "operations": [
+        {
+          "op": "distinct-valid-fixture-signatures",
+          "input": 0,
+          "signature_algorithm": "ecdsa",
+          "nonce_rule": "first-valid-low-S-with-k-1-and-next-k-producing-distinct-low-S",
+          "existing_destination": "original-psbt",
+          "conflicting_destination": "response.updates"
+        },
+        {
+          "op": "rebuild-correlated-sign-response",
+          "request": "original-wire-request",
+          "fee_status": "verified-prevouts",
+          "target_index": 0,
+          "target_status": "signed"
+        }
+      ]
+    },
+    "control-block": {
+      "source": "bitcoin:policies.tr-tree",
+      "description": "Flip only the tweaked output key parity in the control block.",
+      "operations": [
+        {
+          "op": "xor-byte",
+          "path": "psbt.inputs[0].tap_leaf_script[selected-leaf].control_block",
+          "offset": 0,
+          "mask": 1
+        }
+      ]
+    },
+    "descriptor-checksum": {
+      "source": "bitcoin:policies.wsh-sortedmulti",
+      "description": "Replace the final change checksum character by q, or p when it is already q.",
+      "operations": [
+        {
+          "op": "replace-last-char",
+          "path": "policy.change",
+          "value": "q",
+          "alternate": "p"
+        }
+      ]
+    },
+    "descriptor-internal-key": {
+      "source": "bitcoin:policies.tr-tree",
+      "description": "Replace only the change descriptor's internal key with the fixed external account xpub and origin. Preserve its derivation suffix and all leaves.",
+      "operations": [
+        {
+          "op": "replace-descriptor-key",
+          "path": "policy.change",
+          "position": "tap-internal",
+          "reference": "bitcoin:accounts.external-86-0",
+          "preserve_suffix": true
+        },
+        {
+          "op": "descriptor-checksum",
+          "path": "policy.change"
+        }
+      ]
+    },
+    "descriptor-locktime": {
+      "source": "bitcoin:policies.wsh-csv",
+      "description": "Increase the change descriptor's relative block delay by one.",
+      "operations": [
+        {
+          "op": "replace-text-once",
+          "path": "policy.change",
+          "old": "older(144)",
+          "new": "older(145)"
+        },
+        {
+          "op": "descriptor-checksum",
+          "path": "policy.change"
+        }
+      ]
+    },
+    "descriptor-origin": {
+      "source": "bitcoin:policies.wsh-sortedmulti",
+      "description": "Change the first hex nibble of only the first origin fingerprint in the change descriptor.",
+      "operations": [
+        {
+          "op": "xor-origin-nibble",
+          "path": "policy.change",
+          "key_position": 0,
+          "nibble": 0,
+          "mask": 1
+        },
+        {
+          "op": "descriptor-checksum",
+          "path": "policy.change"
+        }
+      ]
+    },
+    "descriptor-tap-tree": {
+      "source": "bitcoin:policies.tr-tree",
+      "description": "Move the tree's branch association and preserve its leaf scripts and internal key.",
+      "operations": [
+        {
+          "op": "reassociate-tree",
+          "path": "policy.change",
+          "original": "{0,{1,2}}",
+          "replacement": "{{0,1},2}"
+        },
+        {
+          "op": "descriptor-checksum",
+          "path": "policy.change"
+        }
+      ]
+    },
+    "descriptor-threshold": {
+      "source": "bitcoin:policies.wsh-sortedmulti",
+      "description": "Change only the change descriptor from sortedmulti threshold 2 to threshold 1.",
+      "operations": [
+        {
+          "op": "replace-text-once",
+          "path": "policy.change",
+          "old": "sortedmulti(2,",
+          "new": "sortedmulti(1,"
+        },
+        {
+          "op": "descriptor-checksum",
+          "path": "policy.change"
+        }
+      ]
+    },
+    "descriptor-wildcard": {
+      "source": "bitcoin:policies.wsh-sortedmulti",
+      "description": "Replace the first change key's terminal wildcard with the fixed index 0.",
+      "operations": [
+        {
+          "op": "replace-text-once",
+          "path": "policy.change",
+          "old": "/*",
+          "new": "/0"
+        },
+        {
+          "op": "descriptor-checksum",
+          "path": "policy.change"
+        }
+      ]
+    },
+    "disable-flag": {
+      "source": "exchange.fixture",
+      "description": "Set the relative locktime disable bit while preserving the sequence value and type.",
+      "operations": [
+        {
+          "op": "set-bit",
+          "path": "tx.inputs[0].sequence",
+          "bit": 31
+        },
+        {
+          "op": "serialize-psbt-transaction",
+          "preserve_untouched_maps": true
+        }
+      ]
+    },
+    "duplicate-derived-pubkey": {
+      "source": [
+        "bitcoin:policies.wsh-sortedmulti",
+        "bitcoin:policies.tr-tree"
+      ],
+      "description": "Use the first key expression and receive/change derivations in two positions. For a generated Miniscript negative case use the same key and derivation for both checks in a complete typed conjunction.",
+      "operations": [
+        {
+          "op": "replace-text-once",
+          "path": "policy.template",
+          "old": "@1/**",
+          "new": "@0/**",
+          "when": "bip388-sortedmulti"
+        },
+        {
+          "op": "replace-text-once",
+          "path": "policy.template",
+          "old": "@2/**",
+          "new": "@1/**",
+          "when": "bip388-sortedmulti"
+        },
+        {
+          "op": "remove",
+          "path": "policy.keys[1]",
+          "when": "bip388-sortedmulti"
+        },
+        {
+          "op": "set-script-expression",
+          "expression": "and_v(v:pk(K0),pk(K0))",
+          "when": "miniscript-corpus",
+          "key_source": {
+            "wsh": "bitcoin:policies.wsh-sortedmulti.addresses[\"0/0\"].keys",
+            "tapscript": "bitcoin:policies.tr-tree.addresses[\"0/0\"].keys"
+          },
+          "key_slots": {
+            "wsh": [
+              0,
+              1,
+              2
+            ],
+            "tapscript": [
+              1,
+              2,
+              3
+            ]
+          },
+          "key_encoding": {
+            "wsh": "compressed-sec1",
+            "tapscript": "x-only"
+          },
+          "key_placeholder_rule": "Ki selects the ith slot and preserves its wallet key expression in a policy."
+        }
+      ]
+    },
+    "duplicate-key-expression": {
+      "source": "bitcoin:policies.wsh-sortedmulti",
+      "description": "Repeat the first BIP-388 key expression in the second key slot.",
+      "operations": [
+        {
+          "op": "copy",
+          "path": "policy.keys[1]",
+          "reference": "policy.keys[0]"
+        }
+      ]
+    },
+    "duplicate-psbt-key": {
+      "source": "bitcoin:policies.wpkh",
+      "description": "Duplicate the target input's witness UTXO key in the serialized PSBT. Increase the second entry's little-endian value by one satoshi.",
+      "operations": [
+        {
+          "op": "duplicate-serialized-entry",
+          "map": "inputs[0]",
+          "key_hex": "01",
+          "second_value_amount_delta_sat": 1
+        }
+      ]
+    },
+    "duplicate-qr-segment": {
+      "source": "wsi:records.capabilities",
+      "description": "Duplicate segment zero while preserving all original segments and native binding indices.",
+      "operations": [
+        {
+          "op": "replay-qr-segments",
+          "segment_count": 3,
+          "order": [
+            0,
+            0,
+            1,
+            2
+          ]
+        }
+      ]
+    },
+    "duplicate-target": {
+      "source": "bitcoin:policies.wpkh",
+      "description": "Append an exact copy of the sole signing target.",
+      "operations": [
+        {
+          "op": "append-copy",
+          "path": "targets",
+          "source": "targets[0]"
+        }
+      ]
+    },
+    "final-sequence": {
+      "source": "exchange.fixture",
+      "description": "Set the CLTV target input to final sequence.",
+      "operations": [
+        {
+          "op": "replace",
+          "path": "tx.inputs[0].sequence",
+          "value": 4294967295
+        },
+        {
+          "op": "serialize-psbt-transaction",
+          "preserve_untouched_maps": true
+        }
+      ]
+    },
+    "forged-existing-signature": {
+      "source": "bitcoin:policies.wpkh",
+      "description": "Add a well-encoded ECDSA signature from the fixture key for a different unsigned transaction under the original target's key.",
+      "operations": [
+        {
+          "op": "misbound-fixture-signature",
+          "input": 0,
+          "change": "increase-output-0-by-one-satoshi",
+          "destination": "original-psbt"
+        }
+      ]
+    },
+    "host-address": {
+      "source": "bitcoin:policies.wpkh",
+      "description": "Suggest the unrelated synthetic receive address to the host for the unchanged change-index 7 request. Inject the suggestion as a forbidden address field if the interface accepts only the closed WSI wire request.",
+      "operations": [
+        {
+          "op": "host-address-suggestion",
+          "reference": "bitcoin:policies.external-wpkh.addresses[\"0/0\"].address",
+          "fallback_field": "params.address"
+        }
+      ]
+    },
+    "host-only-commitment": {
+      "source": "bitcoin:policies.wpkh",
+      "description": "Test the adapter path only when its native commitment omits an approved field. Hold the native commitment constant, substitute an unauthenticated value for the omitted field and recompute the host WSI commitment over the changed object. A native commitment covering every required field supplies the independent control.",
+      "operations": [
+        {
+          "op": "compare-native-commitment-coverage",
+          "fields": [
+            "policy",
+            "network",
+            "origins",
+            "label",
+            "key-context"
+          ]
+        },
+        {
+          "op": "substitute-uncommitted-field",
+          "select": "first-uncovered-field-in-order",
+          "preserve": "native-approval",
+          "recompute": "wsi-policy-id-and-request-hash",
+          "substitutions": {
+            "policy": {
+              "recipe": "changed-policy"
+            },
+            "network": {
+              "recipe": "changed-network"
+            },
+            "origins": {
+              "op": "xor-origin-nibble",
+              "path": "wallet.policy.keys[0]",
+              "nibble": 0,
+              "mask": 1
+            },
+            "label": {
+              "recipe": "changed-label"
+            },
+            "key-context": {
+              "recipe": "changed-key-context"
+            }
+          }
+        }
+      ]
+    },
+    "internal-key": {
+      "source": "bitcoin:policies.tr-tree",
+      "description": "Substitute the x-only key derived from the synthetic external Taproot account at receive 0. Keep the selected leaf and control block.",
+      "operations": [
+        {
+          "op": "derive-xonly",
+          "path": "psbt.inputs[0].tap_internal_key",
+          "source": "bitcoin:accounts.external-86-0",
+          "branch": 0,
+          "index": 0
+        }
+      ]
+    },
+    "invalid-key-encoding": {
+      "source": "bitcoin:policies.wsh-sortedmulti",
+      "description": "Keep a syntactically delimited origin and replace the serialized extended key with invalid text.",
+      "operations": [
+        {
+          "op": "replace-key-body",
+          "path": "policy.keys[0]",
+          "value": "not-an-extended-key"
+        }
+      ]
+    },
+    "key-vector-count": {
+      "source": "bitcoin:policies.wsh-sortedmulti",
+      "description": "Leave the template's final placeholder without its key-vector entry.",
+      "operations": [
+        {
+          "op": "remove",
+          "path": "policy.keys[2]"
+        }
+      ]
+    },
+    "leaf-hash": {
+      "source": "bitcoin:policies.tr-tree",
+      "description": "Change the selected leaf hash in the selected key's Taproot derivation entry. Preserve the requested hash and script.",
+      "operations": [
+        {
+          "op": "xor-byte",
+          "path": "psbt.inputs[0].tap_bip32_derivation[target-key].leaf_hashes[selected-leaf]",
+          "offset": -1,
+          "mask": 1
+        }
+      ]
+    },
+    "leaf-version": {
+      "source": "bitcoin:policies.tr-tree",
+      "description": "Select an unsupported leaf version in both the leaf record and control block while preserving the parity bit.",
+      "operations": [
+        {
+          "op": "replace-leaf-version",
+          "map": "inputs[0]",
+          "leaf": "selected-leaf",
+          "value": 194,
+          "replace_target_and_derivation_hash": true,
+          "preserve_output_commitment": true
+        }
+      ]
+    },
+    "malformed-origin": {
+      "source": "bitcoin:policies.wsh-sortedmulti",
+      "description": "Replace the first eight-digit master fingerprint with a seven-digit fingerprint.",
+      "operations": [
+        {
+          "op": "replace-origin-fingerprint",
+          "path": "policy.keys[0]",
+          "fingerprint": "1234567"
+        }
+      ]
+    },
+    "malleable-satisfaction": {
+      "source": [
+        "bitcoin:policies.wsh-sortedmulti",
+        "bitcoin:policies.tr-tree"
+      ],
+      "description": "Require a signature and introduce an alternative with two publicly selectable satisfactions under a locktime of at least 144.",
+      "operations": [
+        {
+          "op": "set-script-expression",
+          "expression": "and_v(v:pk(K0),or_i(after(144),after(143)))",
+          "key_source": {
+            "wsh": "bitcoin:policies.wsh-sortedmulti.addresses[\"0/0\"].keys",
+            "tapscript": "bitcoin:policies.tr-tree.addresses[\"0/0\"].keys"
+          },
+          "key_slots": {
+            "wsh": [
+              0,
+              1,
+              2
+            ],
+            "tapscript": [
+              1,
+              2,
+              3
+            ]
+          },
+          "key_encoding": {
+            "wsh": "compressed-sec1",
+            "tapscript": "x-only"
+          },
+          "key_placeholder_rule": "Ki selects the ith slot and preserves its wallet key expression in a policy."
+        }
+      ]
+    },
+    "missing-prevtx": {
+      "source": "bitcoin:policies.wpkh",
+      "description": "Remove the external input's complete previous transaction. Keep its witness UTXO and outpoint.",
+      "operations": [
+        {
+          "op": "remove-psbt-entry",
+          "map": "inputs[1]",
+          "key_hex": "00"
+        }
+      ]
+    },
+    "missing-qr-segment": {
+      "source": "wsi:records.capabilities",
+      "description": "Deliver only the first and final native binding segments.",
+      "operations": [
+        {
+          "op": "replay-qr-segments",
+          "segment_count": 3,
+          "order": [
+            0,
+            2
+          ]
+        }
+      ]
+    },
+    "mixed-timelock-types": {
+      "source": [
+        "bitcoin:policies.wsh-sortedmulti",
+        "bitcoin:policies.tr-tree"
+      ],
+      "description": "Require a single transaction to satisfy both a height and a time nLockTime.",
+      "operations": [
+        {
+          "op": "set-script-expression",
+          "expression": "and_v(v:pk(K0),and_v(v:after(144),after(500000000)))",
+          "key_source": {
+            "wsh": "bitcoin:policies.wsh-sortedmulti.addresses[\"0/0\"].keys",
+            "tapscript": "bitcoin:policies.tr-tree.addresses[\"0/0\"].keys"
+          },
+          "key_slots": {
+            "wsh": [
+              0,
+              1,
+              2
+            ],
+            "tapscript": [
+              1,
+              2,
+              3
+            ]
+          },
+          "key_encoding": {
+            "wsh": "compressed-sec1",
+            "tapscript": "x-only"
+          },
+          "key_placeholder_rule": "Ki selects the ith slot and preserves its wallet key expression in a policy."
+        }
+      ]
+    },
+    "out-of-scope-delta": {
+      "source": "bitcoin:policies.wpkh",
+      "description": "Return a valid signature for an independently signable second input omitted from the request target list.",
+      "operations": [
+        {
+          "op": "add-self-input",
+          "reference": "bitcoin:policies.wpkh",
+          "branch": 0,
+          "index": 1,
+          "target": false
+        },
+        {
+          "op": "sign-psbt-fixture-input",
+          "input": 0,
+          "owner": "signer",
+          "sighash": 1,
+          "destination": "response.updates"
+        },
+        {
+          "op": "sign-psbt-fixture-input",
+          "input": 1,
+          "owner": "signer",
+          "sighash": 1,
+          "destination": "response.updates"
+        },
+        {
+          "op": "rebuild-correlated-sign-response",
+          "request": "original-wire-request",
+          "fee_status": "verified-prevouts",
+          "target_index": 0,
+          "target_status": "signed"
+        }
+      ]
+    },
+    "output-tweak": {
+      "source": "bitcoin:policies.tr-tree",
+      "description": "Use the output key derived from receive index 1 as the funding output for the unchanged receive index 0 leaf and request.",
+      "operations": [
+        {
+          "op": "replace-prevout-script",
+          "input": 0,
+          "script_reference": "bitcoin:policies.tr-tree.addresses[\"0/1\"].script_pubkey",
+          "rebuild_parent": true
+        }
+      ]
+    },
+    "overlapping-key-range": {
+      "source": "bitcoin:policies.wsh-sortedmulti",
+      "description": "Give the second use of the signer xpub a range that overlaps the first use.",
+      "operations": [
+        {
+          "op": "replace-text-once",
+          "path": "policy.template",
+          "old": "@1/**",
+          "new": "@0/<1;2>/*"
+        },
+        {
+          "op": "replace-text-once",
+          "path": "policy.template",
+          "old": "@2/**",
+          "new": "@1/**"
+        },
+        {
+          "op": "remove",
+          "path": "policy.keys[1]"
+        }
+      ]
+    },
+    "oversize-file": {
+      "source": "wsi:records.capabilities",
+      "description": "Append zero bytes until the complete file is one byte above the lower of the endpoint and WSI container limits.",
+      "operations": [
+        {
+          "op": "over-limit-frame",
+          "carrier": "file",
+          "extra_bytes": 1,
+          "body": "append-zero-to-length"
+        }
+      ]
+    },
+    "oversize-stream": {
+      "source": "wsi:records.capabilities",
+      "description": "Present the big-endian length prefix for one byte above the lower of the endpoint and WSI container limits, without sending a body.",
+      "operations": [
+        {
+          "op": "over-limit-frame",
+          "carrier": "stream",
+          "extra_bytes": 1,
+          "body": "absent"
+        }
+      ]
+    },
+    "public-satisfaction": {
+      "source": [
+        "bitcoin:policies.wsh-sortedmulti",
+        "bitcoin:policies.tr-tree"
+      ],
+      "description": "Introduce a locktime-only public satisfaction.",
+      "operations": [
+        {
+          "op": "set-script-expression",
+          "expression": "or_i(pk(K0),after(144))",
+          "key_source": {
+            "wsh": "bitcoin:policies.wsh-sortedmulti.addresses[\"0/0\"].keys",
+            "tapscript": "bitcoin:policies.tr-tree.addresses[\"0/0\"].keys"
+          },
+          "key_slots": {
+            "wsh": [
+              0,
+              1,
+              2
+            ],
+            "tapscript": [
+              1,
+              2,
+              3
+            ]
+          },
+          "key_encoding": {
+            "wsh": "compressed-sec1",
+            "tapscript": "x-only"
+          },
+          "key_placeholder_rule": "Ki selects the ith slot and preserves its wallet key expression in a policy."
+        }
+      ]
+    },
+    "reordered-qr-segments": {
+      "source": "wsi:records.capabilities",
+      "description": "Deliver all three native binding segments with segment two first.",
+      "operations": [
+        {
+          "op": "replay-qr-segments",
+          "segment_count": 3,
+          "order": [
+            2,
+            0,
+            1
+          ]
+        }
+      ]
+    },
+    "same-fingerprint-wrong-xpub": {
+      "source": "bitcoin:policies.wsh-sortedmulti",
+      "description": "Keep the signer origin while substituting an independently derived account xpub with matching depth and child number.",
+      "operations": [
+        {
+          "op": "replace-key-body-from-seed",
+          "path": "policy.keys[0]",
+          "source": "bitcoin:test_keys.external",
+          "derivation_path": "m/48h/1h/1h/2h",
+          "preserve_origin": true
+        }
+      ]
+    },
+    "script-mode-without-leaf": {
+      "source": "bitcoin:policies.tr-key",
+      "description": "Request a script-path signature for a key-only Taproot input. Supply an unrecognized all-zero leaf hash to keep the target record shape well formed.",
+      "operations": [
+        {
+          "op": "replace",
+          "path": "targets[0].mode",
+          "value": "tap-script"
+        },
+        {
+          "op": "fill-bytes",
+          "path": "targets[0].leaf_hash",
+          "count": 32,
+          "byte": 0
+        }
+      ]
+    },
+    "sibling-hash": {
+      "source": "bitcoin:policies.tr-tree",
+      "description": "Flip one bit of the first sibling commitment in the selected leaf's control block.",
+      "operations": [
+        {
+          "op": "xor-byte",
+          "path": "psbt.inputs[0].tap_leaf_script[selected-leaf].control_block",
+          "offset": 33,
+          "mask": 1
+        }
+      ]
+    },
+    "split-complete-stream": {
+      "source": "wsi:records.capabilities",
+      "description": "Deliver the stream bytes in four chunks. Observe that dispatch begins after the last chunk.",
+      "operations": [
+        {
+          "op": "split-carrier",
+          "carrier": "stream",
+          "offsets": [
+            2,
+            4,
+            8
+          ],
+          "order": [
+            0,
+            1,
+            2,
+            3
+          ]
+        }
+      ]
+    },
+    "stale-file": {
+      "source": [
+        "wsi:records.capabilities",
+        "bitcoin:policies.wpkh"
+      ],
+      "description": "Replay the byte-identical completed file. Check capabilities replay for framing and use a synthetic sign request for approval and protected response behavior.",
+      "operations": [
+        {
+          "op": "complete-and-replay-file",
+          "original": "capabilities",
+          "replay_mode": "identical"
+        },
+        {
+          "op": "complete-and-replay-file",
+          "original": "synthetic-sign-psbt",
+          "replay_mode": "identical",
+          "allowed": [
+            "authentic-cached-response",
+            "fresh-required-approval"
+          ]
+        }
+      ]
+    },
+    "target-input": {
+      "source": "bitcoin:policies.wpkh",
+      "description": "Replace the target input number with the first out-of-range index.",
+      "operations": [
+        {
+          "op": "set-to-count",
+          "path": "targets[0].input",
+          "source": "tx.inputs"
+        }
+      ]
+    },
+    "target-key": {
+      "source": "bitcoin:policies.wpkh",
+      "description": "Keep the PSBT and request a valid compressed key belonging to a different account.",
+      "operations": [
+        {
+          "op": "copy",
+          "path": "targets[0].pubkey",
+          "reference": "bitcoin:policies.external-wpkh.addresses[\"0/0\"].keys[0].pubkey"
+        }
+      ]
+    },
+    "target-leaf": {
+      "source": "bitcoin:policies.tr-tree",
+      "description": "Change the last byte of the requested leaf hash while preserving the actual leaf script, tree and control block.",
+      "operations": [
+        {
+          "op": "xor-byte",
+          "path": "targets[0].leaf_hash",
+          "offset": -1,
+          "mask": 1
+        }
+      ]
+    },
+    "target-mode": {
+      "source": "bitcoin:policies.wpkh",
+      "description": "Change the selected signature mode to a syntactically valid Taproot key target while retaining the SegWit-v0 spending input.",
+      "operations": [
+        {
+          "op": "replace",
+          "path": "targets[0].mode",
+          "value": "tap-key"
+        },
+        {
+          "op": "slice-bytes",
+          "path": "targets[0].pubkey",
+          "start": 1,
+          "size": 32
+        }
+      ]
+    },
+    "target-sighash": {
+      "source": "bitcoin:policies.wpkh",
+      "description": "Set the target to SIGHASH_NONE while leaving the PSBT effective sighash at SIGHASH_ALL.",
+      "operations": [
+        {
+          "op": "replace",
+          "path": "targets[0].sighash",
+          "value": 2
+        }
+      ]
+    },
+    "truncated-stream": {
+      "source": "wsi:records.capabilities",
+      "description": "Preserve the original four-byte frame length and remove the last container byte. Close the stream after writing the incomplete frame.",
+      "operations": [
+        {
+          "op": "slice-carrier",
+          "carrier": "stream",
+          "start": 0,
+          "end": -1
+        },
+        {
+          "op": "close-stream"
+        }
+      ]
+    },
+    "unrelated-maps-and-signatures": {
+      "source": "bitcoin:policies.wpkh",
+      "description": "Preserve one unknown field in each PSBT scope and a valid signature on an unrelated input while signing the requested input.",
+      "operations": [
+        {
+          "op": "add-external-input",
+          "reference": "bitcoin:policies.external-wpkh",
+          "branch": 0,
+          "index": 0,
+          "target": false
+        },
+        {
+          "op": "add-psbt-entry",
+          "map": "global",
+          "key_hex": "fdfc01637473",
+          "value_hex": "01"
+        },
+        {
+          "op": "add-psbt-entry",
+          "map": "inputs[0]",
+          "key_hex": "fdfc01637473",
+          "value_hex": "02"
+        },
+        {
+          "op": "add-psbt-entry",
+          "map": "outputs[0]",
+          "key_hex": "fdfc01637473",
+          "value_hex": "03"
+        },
+        {
+          "op": "sign-psbt-fixture-input",
+          "input": 1,
+          "owner": "external",
+          "sighash": 1,
+          "add_to_original": true
+        }
+      ]
+    },
+    "unsafe-public-satisfaction": {
+      "source": "bitcoin:policies.wsh-sortedmulti",
+      "description": "Replace the multisig with a locktime-only alternative that can be satisfied without a signature.",
+      "operations": [
+        {
+          "op": "replace",
+          "path": "policy.template",
+          "value": "wsh(or_i(pk(@0/**),after(144)))"
+        },
+        {
+          "op": "remove",
+          "path": "policy.keys[2]"
+        },
+        {
+          "op": "remove",
+          "path": "policy.keys[1]"
+        }
+      ]
+    },
+    "version-one": {
+      "source": "exchange.fixture",
+      "description": "Set the transaction version of a CSV spend to 1.",
+      "operations": [
+        {
+          "op": "replace",
+          "path": "tx.version",
+          "value": 1
+        },
+        {
+          "op": "serialize-psbt-transaction",
+          "preserve_untouched_maps": true
+        }
+      ]
+    },
+    "wrong-context": {
+      "source": [
+        "bitcoin:policies.wsh-sortedmulti",
+        "bitcoin:policies.tr-tree"
+      ],
+      "description": "Use the threshold fragment associated with the other script context.",
+      "operations": [
+        {
+          "op": "set-script-expression",
+          "expression": "multi_a(1,K0,K1)",
+          "when": "wsh",
+          "key_source": {
+            "wsh": "bitcoin:policies.wsh-sortedmulti.addresses[\"0/0\"].keys",
+            "tapscript": "bitcoin:policies.tr-tree.addresses[\"0/0\"].keys"
+          },
+          "key_slots": {
+            "wsh": [
+              0,
+              1,
+              2
+            ],
+            "tapscript": [
+              1,
+              2,
+              3
+            ]
+          },
+          "key_encoding": {
+            "wsh": "compressed-sec1",
+            "tapscript": "x-only"
+          },
+          "key_placeholder_rule": "Ki selects the ith slot and preserves its wallet key expression in a policy."
+        },
+        {
+          "op": "set-script-expression",
+          "expression": "multi(1,K0,K1)",
+          "when": "tapscript",
+          "key_source": {
+            "wsh": "bitcoin:policies.wsh-sortedmulti.addresses[\"0/0\"].keys",
+            "tapscript": "bitcoin:policies.tr-tree.addresses[\"0/0\"].keys"
+          },
+          "key_slots": {
+            "wsh": [
+              0,
+              1,
+              2
+            ],
+            "tapscript": [
+              1,
+              2,
+              3
+            ]
+          },
+          "key_encoding": {
+            "wsh": "compressed-sec1",
+            "tapscript": "x-only"
+          },
+          "key_placeholder_rule": "Ki selects the ith slot and preserves its wallet key expression in a policy."
+        }
+      ]
+    },
+    "wrong-delta-signature": {
+      "source": "bitcoin:policies.wpkh",
+      "description": "Return a syntactically valid signature for the right target key that commits to a different output value.",
+      "operations": [
+        {
+          "op": "misbound-fixture-signature",
+          "input": 0,
+          "change": "increase-output-0-by-one-satoshi",
+          "destination": "response.updates"
+        },
+        {
+          "op": "rebuild-correlated-sign-response",
+          "request": "original-wire-request",
+          "fee_status": "verified-prevouts",
+          "target_index": 0,
+          "target_status": "signed"
+        }
+      ]
+    },
+    "wrong-magic-file": {
+      "source": "wsi:records.capabilities",
+      "description": "Flip one bit in the leading WSI file magic byte.",
+      "operations": [
+        {
+          "op": "xor-byte",
+          "path": "file_bytes",
+          "offset": 0,
+          "mask": 1
+        }
+      ]
+    },
+    "wrong-prevout-index": {
+      "source": "bitcoin:policies.wpkh",
+      "description": "Point the external input at an index equal to its parent transaction's number of outputs. Preserve the parent txid.",
+      "operations": [
+        {
+          "op": "set-to-count",
+          "path": "tx.inputs[1].previous_output.index",
+          "source": "psbt.inputs[1].non_witness_utxo.outputs"
+        },
+        {
+          "op": "serialize-psbt-transaction",
+          "preserve_untouched_maps": true
+        }
+      ]
+    },
+    "wrong-prevtx": {
+      "source": "bitcoin:policies.wpkh",
+      "description": "Change the external input's stored previous transaction without changing its referenced txid or witness UTXO.",
+      "operations": [
+        {
+          "op": "mutate-prevtx-copy",
+          "input": 1,
+          "field": "outputs[referenced-index].value_sat",
+          "delta": 1,
+          "preserve_outpoint": true
+        }
+      ]
+    },
+    "wrong-type": {
+      "source": [
+        "bitcoin:policies.wsh-sortedmulti",
+        "bitcoin:policies.tr-tree"
+      ],
+      "description": "Use a K-typed expression where the complete script must have type B.",
+      "operations": [
+        {
+          "op": "set-script-expression",
+          "expression": "pk_k(K0)",
+          "key_source": {
+            "wsh": "bitcoin:policies.wsh-sortedmulti.addresses[\"0/0\"].keys",
+            "tapscript": "bitcoin:policies.tr-tree.addresses[\"0/0\"].keys"
+          },
+          "key_slots": {
+            "wsh": [
+              0,
+              1,
+              2
+            ],
+            "tapscript": [
+              1,
+              2,
+              3
+            ]
+          },
+          "key_encoding": {
+            "wsh": "compressed-sec1",
+            "tapscript": "x-only"
+          },
+          "key_placeholder_rule": "Ki selects the ith slot and preserves its wallet key expression in a policy."
+        }
+      ]
+    },
+    "wrong-units": {
+      "source": "exchange.fixture",
+      "description": "Flip the units of the instantiated timelock while retaining the approved policy commitment.",
+      "operations": [
+        {
+          "op": "toggle-bit",
+          "path": "tx.inputs[0].sequence",
+          "bit": 22,
+          "when": "csv"
+        },
+        {
+          "op": "other-cltv-domain",
+          "path": "tx.locktime",
+          "height_to_time": 500000000,
+          "time_to_height": 499999999,
+          "when": "cltv"
+        },
+        {
+          "op": "serialize-psbt-transaction",
+          "v2_locktime_rule": "replace-conflicting-required-locktime",
+          "preserve_untouched_maps": true
+        }
+      ]
+    },
+    "wrong-witness-value": {
+      "source": "bitcoin:policies.wpkh",
+      "description": "Increase the external input's witness UTXO value by one satoshi while leaving its authenticated previous transaction intact.",
+      "operations": [
+        {
+          "op": "integer-delta",
+          "path": "psbt.inputs[1].witness_utxo.value_sat",
+          "delta": 1
+        }
+      ]
+    },
+    "wrong-xpub-network": {
+      "source": "bitcoin:policies.wsh-sortedmulti",
+      "description": "Keep a regtest policy and change only the first xpub serialization to mainnet.",
+      "operations": [
+        {
+          "op": "serialize-xpub-version",
+          "path": "policy.keys[0]",
+          "version_hex": "0488b21e"
+        }
+      ]
+    }
+  }
+}
